@@ -1509,7 +1509,7 @@
     <div class="stag reveal">Recognition</div>
     <h2 class="stitle reveal">Your NRIF 2026 Certificate</h2>
     <div class="sdivider reveal"></div>
-    <p class="cert-intro reveal">Every speaker, committee member, and attendee of NRIF 2026 has a personalized certificate waiting here, designed in the forum&rsquo;s own identity. Enter your name exactly as it appears on this site (attendees can verify with the email or phone used to register), add your photo if you&rsquo;d like it featured, and your certificate is generated instantly &mdash; ready to download as a high&#8209;resolution image or a print&#8209;ready PDF, as many times as you need.</p>
+    <p class="cert-intro reveal">Everyone taking part in NRIF 2026 &mdash; speakers, organizing committee, project presenters, and attendees &mdash; has a personalized certificate here, designed in the forum&rsquo;s own identity. Enter the phone number you registered with (email or full name also work), add your photo if you&rsquo;d like it featured, and your certificate is generated instantly &mdash; ready to download as a high&#8209;resolution image or a print&#8209;ready PDF, as many times as you need.</p>
 
     <div class="cert-panel reveal">
       <div class="cert-toggle" id="certToggle">
@@ -2089,6 +2089,24 @@ const CERT_CONFIG = {
   // Set to false to temporarily hide the Attendee tab until your endpoint is deployed.
   attendeeEnabled: true,
 
+  // Require a verification number for these categories before a certificate
+  // is issued (so a publicly-listed name alone isn't enough). Options:
+  //   false  → no number needed (default)
+  //   true   → number required for everyone
+  //   ['Speaker','Keynote','Committee','Presenter']  → only these categories
+  // A person is only asked when a number is on file for them, so you can roll
+  // it out gradually. NOTE: any number you put in the page source is visible
+  // publicly — use a non-sensitive serial/ID, or keep this off and use the
+  // hashed 'code' mode for private verification.
+  requireNumberFor: false,
+
+  // When true, EVERYONE (attendees, presenters, speakers, committee) verifies
+  // through the registration sheet by phone number (or email / name), and the
+  // sheet's Type column decides which certificate they get. This hides the
+  // name-only tab so verification can't be skipped. Set to false to bring back
+  // the two tabs (name list for speakers/committee + sheet for attendees).
+  unifiedSheetMode: true,
+
   // Endpoint that verifies attendees against the registration sheet (separate Apps Script).
   verifyUrl: 'https://script.google.com/macros/s/AKfycbyPU6qngJufF5iEQT2gO5vSnMBNtDpMyga7PTJMLLawslpuTXIR7_Uc0aigzCsiGf-b/exec',
 
@@ -2133,19 +2151,54 @@ async function certHashHelper(name, code){
 window.certHashHelper = certHashHelper;
 
 // Build the authorised registry from the data already on the page.
+// ── EXTRA HONOREES (Certificate of Appreciation) ──────────────────
+//  People who should receive a Certificate of APPRECIATION but are NOT in the
+//  speakers grid or the organizing committees — e.g. Research Day project
+//  presenters, guests, or volunteers. They appear ONLY in the certificate
+//  generator, never in the Committees section of the page.
+//  Copy a line and edit it for each person:
+//    { name:'Dr. Full Name', subtitle:'Research Day \u2014 Project Presenter', project:'Project title (optional)', phone:'' }
+//  - subtitle : the italic line under the title (defaults to a presenter line)
+//  - project  : optional; if set it is woven into the appreciation sentence
+//  - phone    : optional verification number (see CERT_CONFIG.requireNumberFor)
+const CERT_EXTRA = [
+  // { name:'Dr. Example Presenter', subtitle:'Research Day \u2014 Project Presenter', project:'AI in Nursing Triage', phone:'' },
+];
+
+// Tolerant number compare (ignores spaces / +966 vs leading 0, etc.)
+function certDigits(s){ return (s||'').replace(/\D+/g,''); }
+function certNumberMatches(typed, onFile){
+  const a=certDigits(typed), b=certDigits(onFile);
+  if(!a || !b) return false;
+  if(a===b) return true;
+  // drop leading zeros so a local 05… matches an international +9665… form
+  const sa=a.replace(/^0+/,''), sb=b.replace(/^0+/,'');
+  if(sa===sb) return true;
+  const m=Math.min(sa.length, sb.length);
+  return m>=7 && (sa.endsWith(sb) || sb.endsWith(sa));
+}
+// Is a verification number required for this category?
+function certNumRequired(cat){
+  const r = CERT_CONFIG.requireNumberFor;
+  if(!r) return false;
+  if(r===true) return true;
+  return Array.isArray(r) && r.indexOf(cat)>-1;
+}
+
 function buildCertRegistry(){
   const reg = new Map();
-  const add = (name, category, role, committee) => {
+  const add = (name, category, role, committee, phone) => {
     const key = certNormalize(name);
     if(!key) return;
     if(!reg.has(key)){
-      reg.set(key, { name:(name||'').trim(), category, role:role||'', committee:committee||'' });
+      reg.set(key, { name:(name||'').trim(), category, role:role||'', committee:committee||'', phone:(phone||'').trim() });
     } else {
       const e = reg.get(key);
-      const rank = { 'Keynote':3, 'Speaker':2, 'Committee':1 };
+      const rank = { 'Keynote':3, 'Speaker':2, 'Presenter':2, 'Committee':1 };
       if((rank[category]||0) > (rank[e.category]||0)){
         e.category=category; e.role=role||e.role; e.committee=committee||e.committee;
       } else if(category==='Committee' && !e.committee){ e.committee=committee||''; }
+      if(phone && !e.phone) e.phone=phone;
     }
   };
   // Speakers (from the Distinguished Speakers grid)
@@ -2153,14 +2206,19 @@ function buildCertRegistry(){
     const nm  = card.querySelector('.sp-name')?.textContent?.trim();
     const rl  = card.querySelector('.sp-role')?.textContent?.trim() || '';
     const org = card.querySelector('.sp-org')?.textContent?.trim().toLowerCase() || '';
-    if(nm) add(nm, org==='keynote' ? 'Keynote' : 'Speaker', rl, '');
+    const ph  = card.getAttribute('data-phone') || card.querySelector('.sp-phone')?.textContent?.trim() || '';
+    if(nm) add(nm, org==='keynote' ? 'Keynote' : 'Speaker', rl, '', ph);
   });
   // Keynote (full name)
   const kn = document.querySelector('.kn-name')?.textContent?.trim();
-  if(kn) add(kn, 'Keynote', document.querySelector('.kn-role')?.textContent?.trim() || 'Keynote Speaker', '');
+  if(kn) add(kn, 'Keynote', document.querySelector('.kn-role')?.textContent?.trim() || 'Keynote Speaker', '', document.querySelector('.kn-card')?.getAttribute('data-phone') || '');
   // Committee / volunteers
   if(typeof committees!=='undefined' && Array.isArray(committees)){
-    committees.forEach(c=>{ (c.members||[]).forEach(m=> add(m.name, 'Committee', m.pos||'Member', c.name)); });
+    committees.forEach(c=>{ (c.members||[]).forEach(m=> add(m.name, 'Committee', m.pos||'Member', c.name, m.phone||'')); });
+  }
+  // Extra honorees → Certificate of Appreciation (Presenter category)
+  if(typeof CERT_EXTRA!=='undefined' && Array.isArray(CERT_EXTRA)){
+    CERT_EXTRA.forEach(p=> add(p.name, 'Presenter', p.project||'', p.subtitle || 'Research Day \u2014 Project Presenter', p.phone||''));
   }
   return reg;
 }
@@ -2172,13 +2230,14 @@ function initCert(){
   CERT_REG  = buildCertRegistry();
   CERT_LIST = [...CERT_REG.values()].sort((a,b)=> a.name.localeCompare(b.name));
   const tgl = document.getElementById('certToggle');
-  if(tgl) tgl.style.display = CERT_CONFIG.attendeeEnabled ? 'flex' : 'none';
+  if(CERT_CONFIG.unifiedSheetMode){ if(tgl) tgl.style.display='none'; }
+  else if(tgl){ tgl.style.display = CERT_CONFIG.attendeeEnabled ? 'flex' : 'none'; }
   const inp = document.getElementById('certName');
   if(inp){
     inp.addEventListener('input', ()=>{ const m=document.getElementById('certMsg'); m.className='cert-msg'; });
     inp.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); generateCertificate(); } });
   }
-  certSetAudience('speaker');
+  certSetAudience(CERT_CONFIG.unifiedSheetMode ? 'attendee' : 'speaker');
 }
 
 function certErr(t){ const m=document.getElementById('certMsg'); m.className='cert-msg err'; m.textContent=t; return false; }
@@ -2201,13 +2260,23 @@ function certSetAudience(a){
   document.getElementById('certMsg').className='cert-msg';
   document.getElementById('certResult').classList.remove('show');
   if(a==='attendee'){
-    if(lbl) lbl.textContent='Email, phone, or name';
-    if(inp) inp.placeholder='Enter your registered email, phone, or name';
+    if(lbl) lbl.textContent='Your Phone Number';
+    if(inp) inp.placeholder='Registered phone \u2014 or email / name';
     if(vf) vf.style.display='none';
   } else {
     if(lbl) lbl.textContent='Your Name';
     if(inp) inp.placeholder='Type your full name';
-    if(vf) vf.style.display=(CERT_CONFIG.mode==='code')?'block':'none';
+    const vlbl=document.querySelector('label[for="certVerify"]');
+    const vinp=document.getElementById('certVerify');
+    if(CERT_CONFIG.requireNumberFor){
+      if(vf) vf.style.display='block';
+      if(vlbl) vlbl.innerHTML='Your Number <span class="opt">\u2014 to verify it\u2019s you</span>';
+      if(vinp) vinp.placeholder='Enter your number';
+    } else if(CERT_CONFIG.mode==='code'){
+      if(vf) vf.style.display='block';
+      if(vlbl) vlbl.innerHTML='Verification <span class="opt">\u2014 the email / code provided to you</span>';
+      if(vinp) vinp.placeholder='e.g. your registered email';
+    } else if(vf){ vf.style.display='none'; }
   }
   if(inp) inp.value='';
 }
@@ -2234,7 +2303,7 @@ async function generateCertificate(){
   const msg = document.getElementById('certMsg'); msg.className='cert-msg';
   const btn = document.getElementById('certBtn');
   const typed = document.getElementById('certName').value.trim();
-  if(!typed) return certErr(certAudience==='attendee' ? 'Please enter your registered email, phone, or name.' : 'Please type your full name.');
+  if(!typed) return certErr(certAudience==='attendee' ? 'Please enter your registered phone number (or email / name).' : 'Please type your full name.');
 
   let person=null, email='';
 
@@ -2245,13 +2314,26 @@ async function generateCertificate(){
     if(res.error==='noendpoint') return certErr('Attendee verification isn’t set up yet on this site. Please try again later.');
     if(res.error) return certErr('Couldn’t reach the verification service right now. Please check your connection and try again.');
     if(!res.found || !res.name) return certErr('We couldn’t find a registration matching that email, phone, or name. Please enter exactly what you used when you registered.');
-    person={ name:res.name, category:'Attendee', role:'', committee:'' };
+    // The certificate TYPE can come straight from the sheet (column returned by
+    // the verify endpoint as `type` or `category`). Falls back to Attendee, so
+    // existing setups keep working unchanged. For a Presenter, `project` fills
+    // the appreciation line and `subtitle` (or `committee`) sets the italic line.
+    const certCats = ['Attendee','Presenter','Speaker','Keynote','Committee'];
+    let cat = res.category || res.type || 'Attendee';
+    cat = certCats.indexOf(cat) > -1 ? cat : 'Attendee';
+    person = { name:res.name, category:cat, role:(res.role||res.project||''), committee:(res.subtitle||res.committee||'') };
     email=(typed.indexOf('@')>-1)?typed:'';
   } else {
     const key=certNormalize(typed);
     person = CERT_REG.has(key) ? CERT_REG.get(key) : null;
     if(!person) return certErr('We couldn’t find that name in the NRIF 2026 speakers or committee lists. Please write your name exactly as it appears on the site.');
-    if(CERT_CONFIG.mode==='code'){
+    // Optional number verification (Speakers / Committee / Presenters)
+    if(certNumRequired(person.category) && person.phone){
+      const num=document.getElementById('certVerify').value.trim();
+      if(!num) return certErr('Please enter your number to verify your certificate.');
+      if(!certNumberMatches(num, person.phone)) return certErr('That number doesn’t match our records for this name. Please check and try again.');
+      email=num;
+    } else if(CERT_CONFIG.mode==='code'){
       email=document.getElementById('certVerify').value.trim();
       if(!email) return certErr('Please enter the email / code that was provided to you.');
       if(!(window.crypto && crypto.subtle)) return certErr('Verification requires the site to be opened over https. Please use the live link.');
@@ -2357,6 +2439,8 @@ function certEsc(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt
 function certThanksText(p){
   const F = CERT_CONFIG.forumShort, nm = '<b>'+certEsc(p.name)+'</b>';
   const dl = ' Download it as a high-resolution PNG or a print-ready PDF below &mdash; you can come back and download it again anytime.';
+  if(p.category==='Presenter')
+    return 'Thank you, '+nm+', for presenting your project at '+F+' Research Day'+(p.role?' (“'+certEsc(p.role)+'”)':'')+'. Your work enriched the forum.'+dl;
   if(p.category==='Committee')
     return 'Thank you, '+nm+', for your dedication as part of the '+certEsc(p.committee||'organizing team')+'. '+F+' simply would not have happened without you.'+dl;
   if(p.category==='Attendee')
@@ -2447,50 +2531,53 @@ async function drawCertificate(person, certId){
 
   // ── content ──
   ctx.textAlign='center'; ctx.textBaseline='top';
-  let y = hasPhoto ? 104 : 118;
+  const titleSize = hasPhoto ? 72 : 80;   // a touch smaller when a photo is shown
+  const nameSize  = hasPhoto ? 74 : 82;
+  let y = hasPhoto ? 100 : 120;
 
   const logo = await certLoadImg(document.querySelector('.lb-logos img')?.src || '');
-  const lh = hasPhoto ? 92 : 108;
-  if(logo && logo.width){ const lw=logo.width*(lh/logo.height); ctx.drawImage(logo, cx-lw/2, y, lw, lh); y+=lh+(hasPhoto?12:16); }
+  const lh = hasPhoto ? 90 : 106;
+  if(logo && logo.width){ const lw=logo.width*(lh/logo.height); ctx.drawImage(logo, cx-lw/2, y, lw, lh); y+=lh+(hasPhoto?14:18); }
   else { y+=70; }
 
   ctx.fillStyle=TEALB; ctx.font="600 28px 'Playfair Display', serif";
-  ctx.fillText(CERT_CONFIG.forumName, cx, y); y += hasPhoto?32:36;
-  certDivider(ctx, cx, y+4, 86, GOLDL); y += hasPhoto?20:26;
+  ctx.fillText(CERT_CONFIG.forumName, cx, y); y += 40;
+  certDivider(ctx, cx, y+2, 86, GOLDL); y += 26;
 
   ctx.fillStyle=GOLDL; ctx.font="600 21px 'DM Sans', sans-serif"; ctx.letterSpacing='7px';
-  ctx.fillText('CERTIFICATE OF', cx, y); ctx.letterSpacing='0px'; y+=30;
+  ctx.fillText('CERTIFICATE OF', cx, y); ctx.letterSpacing='0px'; y += 38;
 
-  const titleWord = person.category==='Committee' ? 'Appreciation'
-                  : person.category==='Attendee'  ? 'Attendance'
+  const titleWord = (person.category==='Committee' || person.category==='Presenter') ? 'Appreciation'
+                  : person.category==='Attendee' ? 'Attendance'
                   : 'Participation';
-  let tg=ctx.createLinearGradient(0,y,0,y+78); tg.addColorStop(0,GOLDX); tg.addColorStop(1,GOLD);
-  ctx.fillStyle=tg; ctx.font="700 78px 'Playfair Display', serif";
-  ctx.fillText(titleWord, cx, y); y+=82;
+  let tg=ctx.createLinearGradient(0,y,0,y+titleSize); tg.addColorStop(0,GOLDX); tg.addColorStop(1,GOLD);
+  ctx.fillStyle=tg; ctx.font="700 "+titleSize+"px 'Playfair Display', serif";
+  ctx.fillText(titleWord, cx, y); y += titleSize + (hasPhoto?28:32);   // room for descenders + breathing space
 
   const subtitle = person.category==='Keynote' ? 'Keynote Speaker'
                  : person.category==='Speaker' ? 'Distinguished Speaker'
                  : person.category==='Attendee' ? 'Forum Participant'
+                 : person.category==='Presenter' ? (person.committee || 'Research Day \u2014 Project Presenter')
                  : (person.committee || 'Organizing Committee');
-  ctx.fillStyle=TEALB; ctx.font="italic 500 25px 'EB Garamond', serif";
-  ctx.fillText(subtitle, cx, y); y += hasPhoto?40:48;
+  ctx.fillStyle=TEALB; ctx.font="italic 500 26px 'EB Garamond', serif";
+  ctx.fillText(subtitle, cx, y); y += hasPhoto?44:54;
 
   // ── optional circular photo ──
   if(hasPhoto){
-    const d=156;
+    const d=150;
     certDrawPhoto(ctx, photoImg, cx, y+d/2, d, TEAL, GOLD, GOLDL);
-    y += d + 22;
+    y += d + 30;
   }
 
   ctx.fillStyle=SUB; ctx.font="italic 400 26px 'EB Garamond', serif";
-  ctx.fillText('This certificate is proudly presented to', cx, y); y += 46;
+  ctx.fillText('This certificate is proudly presented to', cx, y); y += 50;
 
   // name (warm cream → gold gradient)
-  ctx.font="700 78px 'Playfair Display', serif";
-  let ng=ctx.createLinearGradient(0,y,0,y+78); ng.addColorStop(0,'#fbf4e3'); ng.addColorStop(1,GOLDL);
+  ctx.font="700 "+nameSize+"px 'Playfair Display', serif";
+  let ng=ctx.createLinearGradient(0,y,0,y+nameSize); ng.addColorStop(0,'#fbf4e3'); ng.addColorStop(1,GOLDL);
   ctx.fillStyle=ng; ctx.fillText(person.name, cx, y);
-  const nameW=Math.min(ctx.measureText(person.name).width/2 + 70, 620);
-  y+=88; certDivider(ctx, cx, y, nameW, GOLDL); y+=26;
+  const nameW=Math.min(ctx.measureText(person.name).width/2 + 70, 640);
+  y += nameSize + 20; certDivider(ctx, cx, y, nameW, GOLDL); y += 30;
 
   const F = CERT_CONFIG.forumName+' ('+CERT_CONFIG.forumShort+')';
   let body;
@@ -2499,13 +2586,19 @@ async function drawCertificate(person, certId){
   else if(person.category==='Speaker')
     body='in sincere appreciation of their distinguished participation as a Speaker at the '+F+', and for their valued contribution to advancing nursing research, innovation, and clinical excellence.';
   else if(person.category==='Attendee')
-    body='in appreciation of their valued attendance and active participation in the '+F+', and for their engagement throughout the forum\u2019s sessions and activities.';
+    body='in appreciation of their valued attendance and active participation in the '+F+', and for their engagement throughout the forum’s sessions and activities.';
+  else if(person.category==='Presenter')
+    body='in sincere appreciation of their valued participation as a project presenter at the '+F+' Research Day'+(person.role?', for presenting “'+person.role+'”':'')+', and for their meaningful contribution to advancing nursing research, innovation, and clinical practice.';
   else
     body='in sincere appreciation of their dedicated efforts and outstanding contribution as a valued member of the '+(person.committee||'organizing team')+', which greatly supported the success of the '+F+'.';
 
   ctx.fillStyle=BODY; ctx.font="400 26px 'EB Garamond', serif";
-  certWrap(ctx, body, 1340).forEach(ln=>{ ctx.fillText(ln, cx, y); y+=38; });
-  y+=12;
+  const bodyLines = certWrap(ctx, body, 1400);
+  let bl = 40;                                   // comfortable default (1-2 lines)
+  if(bodyLines.length>=4) bl = hasPhoto?30:36;   // tighten only for very long text
+  else if(bodyLines.length===3 && hasPhoto) bl = 36;
+  bodyLines.forEach(ln=>{ ctx.fillText(ln, cx, y); y += bl; });
+  y += 16;
 
   ctx.fillStyle=GOLDL; ctx.font="600 20px 'DM Sans', sans-serif"; ctx.letterSpacing='1px';
   ctx.fillText(CERT_CONFIG.forumDate, cx, y); ctx.letterSpacing='0px'; y+=28;
