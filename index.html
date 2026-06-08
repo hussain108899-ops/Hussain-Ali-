@@ -58,7 +58,7 @@
     }
 
     /* ── LOGO BAR ── */
-    .logo-bar { position: relative; z-index: 1000;
+    .logo-bar {
       position: fixed; top:0; left:0; right:0; z-index:1000;
       background: rgba(7,21,24,0.88);
       backdrop-filter: blur(20px);
@@ -594,6 +594,12 @@
       .hs-item { border-right:none; border-bottom:1px solid rgba(13,138,143,0.1); }
       section { padding:60px 16px; }
     }
+    /* The full inline nav has many links; below this width it would crowd the
+       logo, so we hand off to the floating menu earlier and keep the bar clean. */
+    @media(max-width:1150px) {
+      .lb-nav { display:none; }
+      .fab { display:flex; }
+    }
     @media(max-width:600px) {
       .obj-grid { grid-template-columns:1fr; }
       .fg2 { grid-template-columns:1fr; }
@@ -929,8 +935,8 @@
     .cert-result.show { display:block; animation:certFade 0.5s ease; }
     @keyframes certFade { from{opacity:0;transform:translateY(18px);} to{opacity:1;transform:translateY(0);} }
     .cert-preview-wrap {
-      background:#fff; border-radius:12px; padding:10px; max-width:780px;
-      box-shadow:0 22px 64px rgba(0,0,0,0.45); border:1px solid rgba(13,138,143,0.2);
+      background:#0a1f24; border-radius:12px; padding:8px; max-width:780px;
+      box-shadow:0 22px 64px rgba(0,0,0,0.45); border:1px solid rgba(13,138,143,0.25);
     }
     .cert-preview-wrap canvas { width:100%; height:auto; display:block; border-radius:6px; }
     .cert-actions { display:flex; gap:12px; flex-wrap:wrap; margin-top:18px; max-width:780px; }
@@ -944,6 +950,42 @@
     .cert-dl-pdf:hover { background:var(--gold); color:var(--dark); transform:translateY(-2px); }
     .cert-vid { margin-top:14px; font-size:0.78rem; color:var(--muted); letter-spacing:0.5px; }
     .cert-vid b { color:var(--teal-ll); letter-spacing:1px; }
+    /* photo upload */
+    .cert-photo-row { display:flex; align-items:center; gap:14px; }
+    .cert-photo-prev {
+      width:62px; height:62px; border-radius:50%; flex:0 0 auto;
+      background:rgba(7,21,24,0.6); background-size:cover; background-position:center;
+      border:1px solid rgba(13,138,143,0.3); transition:all 0.25s;
+    }
+    .cert-photo-prev.has { border-color:var(--gold); box-shadow:0 0 0 3px rgba(184,146,42,0.16); }
+    .cert-photo-cta { display:flex; flex-wrap:wrap; align-items:center; gap:8px 10px; }
+    .cert-photo-btn {
+      background:rgba(20,168,173,0.12); color:var(--teal-ll);
+      border:1px solid rgba(20,168,173,0.35); border-radius:9px;
+      padding:9px 16px; font-family:'DM Sans',sans-serif; font-size:0.85rem;
+      font-weight:600; cursor:none; transition:all 0.2s;
+    }
+    .cert-photo-btn:hover { background:rgba(20,168,173,0.2); border-color:var(--teal-ll); transform:translateY(-1px); }
+    .cert-photo-rm {
+      background:transparent; color:#ff9c9c; border:1px solid rgba(200,70,70,0.4);
+      border-radius:9px; padding:9px 14px; font-family:'DM Sans',sans-serif;
+      font-size:0.82rem; font-weight:600; cursor:none; transition:all 0.2s;
+    }
+    .cert-photo-rm:hover { background:rgba(200,70,70,0.12); }
+    .cert-photo-hint { flex-basis:100%; font-size:0.72rem; color:var(--muted); }
+    /* thank-you message shown after the certificate */
+    .cert-thanks {
+      margin-top:18px; max-width:780px; display:flex; gap:13px; align-items:flex-start;
+      background:linear-gradient(180deg, rgba(184,146,42,0.1), rgba(20,168,173,0.06));
+      border:1px solid rgba(184,146,42,0.32); border-radius:14px; padding:16px 18px;
+    }
+    .cert-thanks-ic {
+      width:30px; height:30px; flex:0 0 auto; border-radius:50%;
+      background:linear-gradient(135deg, var(--gold-l), var(--gold)); color:var(--dark);
+      display:flex; align-items:center; justify-content:center; font-size:0.95rem; font-weight:700;
+    }
+    .cert-thanks-tx { color:var(--text); font-size:0.9rem; line-height:1.7; }
+    .cert-thanks-tx b { color:var(--gold-l); }
     @media (max-width:600px){ .cert-panel{ padding:22px; } }
   </style>
 </head>
@@ -1465,9 +1507,9 @@
 <section id="certificates" class="section alt-bg">
   <div class="container">
     <div class="stag reveal">Recognition</div>
-    <h2 class="stitle reveal">Claim Your Certificate</h2>
+    <h2 class="stitle reveal">Your NRIF 2026 Certificate</h2>
     <div class="sdivider reveal"></div>
-    <p class="cert-intro reveal">Speakers and committee members of NRIF 2026 can generate and download their official certificate here. Select your name as listed on this site, complete the quick verification, and your personalized certificate is ready to download as an image or PDF — as many times as you need.</p>
+    <p class="cert-intro reveal">Every speaker, committee member, and attendee of NRIF 2026 has a personalized certificate waiting here, designed in the forum&rsquo;s own identity. Enter your name exactly as it appears on this site (attendees can verify with the email or phone used to register), add your photo if you&rsquo;d like it featured, and your certificate is generated instantly &mdash; ready to download as a high&#8209;resolution image or a print&#8209;ready PDF, as many times as you need.</p>
 
     <div class="cert-panel reveal">
       <div class="cert-toggle" id="certToggle">
@@ -1482,6 +1524,18 @@
         <label for="certVerify">Verification <span class="opt">— the email / code provided to you</span></label>
         <input type="text" id="certVerify" class="cert-input" autocomplete="off" spellcheck="false" placeholder="e.g. your registered email"/>
       </div>
+      <div class="cert-field cert-photo-field">
+        <label>Your Photo <span class="opt">&mdash; optional, appears on your certificate</span></label>
+        <div class="cert-photo-row">
+          <div class="cert-photo-prev" id="certPhotoPrev"></div>
+          <div class="cert-photo-cta">
+            <input type="file" id="certPhotoInput" accept="image/*" hidden onchange="certHandlePhoto(this)"/>
+            <button type="button" class="cert-photo-btn" onclick="document.getElementById('certPhotoInput').click()">Upload photo</button>
+            <button type="button" class="cert-photo-rm" id="certPhotoRm" style="display:none;" onclick="certRemovePhoto()">Remove</button>
+            <div class="cert-photo-hint">A square headshot looks best &middot; JPG or PNG</div>
+          </div>
+        </div>
+      </div>
       <button class="cert-btn" id="certBtn" onclick="generateCertificate()">Generate My Certificate</button>
       <div class="cert-msg" id="certMsg"></div>
     </div>
@@ -1495,6 +1549,10 @@
         <button class="cert-dl-pdf" onclick="downloadCertPDF()">⎙&nbsp;&nbsp;Save as PDF</button>
       </div>
       <div class="cert-vid">Certificate ID:&nbsp; <b id="certVid">—</b></div>
+      <div class="cert-thanks" id="certThanks">
+        <div class="cert-thanks-ic">&#10003;</div>
+        <div class="cert-thanks-tx" id="certThanksTx"></div>
+      </div>
     </div>
   </div>
 </section>
@@ -2108,6 +2166,7 @@ function buildCertRegistry(){
 }
 
 let CERT_REG, CERT_LIST, certSelected=null, certActive=-1, certCurrent=null;
+let certPhotoDataUrl='';   // optional uploaded photo (data URL) drawn on the certificate
 
 function initCert(){
   CERT_REG  = buildCertRegistry();
@@ -2209,7 +2268,9 @@ async function generateCertificate(){
     document.getElementById('certVid').textContent = certId;
     const r=document.getElementById('certResult'); r.classList.add('show');
     msg.className='cert-msg ok';
-    msg.textContent = 'Certificate ready for '+person.name+'. Download it below — you can come back and download it again anytime.';
+    msg.textContent = 'Your certificate for '+person.name+' is ready below.';
+    const _th=document.getElementById('certThanksTx');
+    if(_th) _th.innerHTML = certThanksText(person);
     if(CERT_CONFIG.logToSheet) certLog(person.name, email, certId);
     setTimeout(()=> r.scrollIntoView({behavior:'smooth', block:'start'}), 150);
   }catch(err){
@@ -2271,55 +2332,165 @@ function certSeal(ctx,x,y,r,TEAL,GOLD,GOLDL){
   ctx.beginPath(); ctx.arc(x,y+r-24,2.5,0,Math.PI*2); ctx.fill();
 }
 
+// ── Photo upload handlers ────────────────────────────────────
+function certHandlePhoto(input){
+  const f = input.files && input.files[0];
+  if(!f) return;
+  if(!/^image\//.test(f.type)){ if(typeof showToast==='function') showToast('Please choose an image file'); return; }
+  const r = new FileReader();
+  r.onload = e => {
+    certPhotoDataUrl = e.target.result;
+    const p = document.getElementById('certPhotoPrev');
+    if(p){ p.style.backgroundImage = 'url("'+certPhotoDataUrl+'")'; p.classList.add('has'); }
+    const rm = document.getElementById('certPhotoRm'); if(rm) rm.style.display='';
+  };
+  r.readAsDataURL(f);
+}
+function certRemovePhoto(){
+  certPhotoDataUrl = '';
+  const p = document.getElementById('certPhotoPrev');
+  if(p){ p.style.backgroundImage = ''; p.classList.remove('has'); }
+  const rm = document.getElementById('certPhotoRm'); if(rm) rm.style.display='none';
+  const i = document.getElementById('certPhotoInput'); if(i) i.value='';
+}
+function certEsc(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function certThanksText(p){
+  const F = CERT_CONFIG.forumShort, nm = '<b>'+certEsc(p.name)+'</b>';
+  const dl = ' Download it as a high-resolution PNG or a print-ready PDF below &mdash; you can come back and download it again anytime.';
+  if(p.category==='Committee')
+    return 'Thank you, '+nm+', for your dedication as part of the '+certEsc(p.committee||'organizing team')+'. '+F+' simply would not have happened without you.'+dl;
+  if(p.category==='Attendee')
+    return 'Thank you for joining us, '+nm+'. We hope '+F+' sparked new ideas and connections for you.'+dl;
+  if(p.category==='Keynote')
+    return 'Thank you, '+nm+', for honouring '+F+' as our keynote speaker. Your insight set the tone for the whole forum.'+dl;
+  return 'Thank you, '+nm+', for sharing your expertise as a speaker at '+F+'. Your contribution made a real difference.'+dl;
+}
+
+// ── Canvas: background decoration (faint light-lines + colored dots) ──
+function certBgDecor(ctx, W, H){
+  // faint diagonal hair-lines, confined to two opposite corner zones
+  const fan = (x0,y0,x1,y1,rgb)=>{
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x0,y0,x1-x0,y1-y0); ctx.clip();
+    ctx.lineWidth = 1;
+    for(let d=-280; d<(x1-x0)+280; d+=24){
+      ctx.strokeStyle = 'rgba('+rgb+',0.06)';
+      ctx.beginPath(); ctx.moveTo(x0+d, y0); ctx.lineTo(x0+d-280, y0+280); ctx.stroke();
+    }
+    ctx.restore();
+  };
+  fan(72,72,452,322,'40,192,198');
+  fan(W-452,H-322,W-72,H-72,'218,180,85');
+
+  // deterministic colored-dot clusters in the other two corners
+  const cluster = (cx,cy,a0,colA,colB)=>{
+    for(let i=0;i<15;i++){
+      const ang = a0 + i*0.66, dist = 16 + i*13;
+      const x = cx + Math.cos(ang)*dist, yv = cy + Math.sin(ang)*dist;
+      const rad = (i%4===0)?5 : (i%2===0)?3.3 : 2;
+      ctx.beginPath(); ctx.arc(x, yv, rad, 0, Math.PI*2);
+      ctx.fillStyle = (i%2===0)?colA:colB; ctx.fill();
+    }
+  };
+  cluster(W-150,150,2.4,'rgba(40,192,198,0.6)','rgba(218,180,85,0.5)');   // top-right
+  cluster(150,H-150,-0.7,'rgba(218,180,85,0.6)','rgba(40,192,198,0.5)');  // bottom-left
+}
+
+// ── Canvas: optional circular photo with teal+gold ring ──
+function certDrawPhoto(ctx, img, cx, cy, d, TEAL, GOLD, GOLDL){
+  const r = d/2;
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.closePath(); ctx.clip();
+  const iw=img.width, ih=img.height, sc=Math.max(d/iw, d/ih);
+  const w=iw*sc, h=ih*sc;
+  ctx.drawImage(img, cx-w/2, cy-h/2, w, h);
+  ctx.restore();
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.lineWidth=5; ctx.strokeStyle=TEAL; ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx,cy,r+7,0,Math.PI*2); ctx.lineWidth=2; ctx.strokeStyle=GOLDL; ctx.stroke();
+  ctx.fillStyle=GOLDL;
+  ctx.beginPath(); ctx.arc(cx,cy-r-7,3.5,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx,cy+r+7,3.5,0,Math.PI*2); ctx.fill();
+}
+
 async function drawCertificate(person, certId){
   await certEnsureFonts();
   const c = document.getElementById('certCanvas');
   const W=c.width, H=c.height, ctx=c.getContext('2d');
-  const TEAL='#0a5c61', TEALL='#0d8a8f', GOLD='#b8922a', GOLDL='#cda23f', INK='#243133', SUB='#5d6e70', CREAM='#fbf8f1';
   const cx=W/2;
 
+  // ── palette: the site's own identity (deep teal + gold on dark) ──
+  const BG1='#071518', BG2='#0c2226';
+  const TEAL='#0a5c61', TEALB='#28c0c6';
+  const GOLD='#b8922a', GOLDL='#dab455', GOLDX='#ecca74';
+  const CREAM='#eef4f5', BODY='#cfe1e3', SUB='#8fb2b6';
+
+  const photoImg = certPhotoDataUrl ? await certLoadImg(certPhotoDataUrl) : null;
+  const hasPhoto = !!(photoImg && photoImg.width);
+
+  // ── background: identity gradient + soft glows ──
   ctx.clearRect(0,0,W,H);
-  ctx.fillStyle=CREAM; ctx.fillRect(0,0,W,H);
-  let g=ctx.createRadialGradient(0,0,0,0,0,760); g.addColorStop(0,'rgba(20,168,173,0.10)'); g.addColorStop(1,'rgba(20,168,173,0)'); ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
-  g=ctx.createRadialGradient(W,H,0,W,H,760); g.addColorStop(0,'rgba(184,146,42,0.10)'); g.addColorStop(1,'rgba(184,146,42,0)'); ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  let bg=ctx.createLinearGradient(0,0,W,H);
+  bg.addColorStop(0,BG1); bg.addColorStop(0.5,BG2); bg.addColorStop(1,BG1);
+  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+  let g=ctx.createRadialGradient(W*0.22,H*0.16,0,W*0.22,H*0.16,860);
+  g.addColorStop(0,'rgba(20,168,173,0.16)'); g.addColorStop(1,'rgba(20,168,173,0)'); ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  g=ctx.createRadialGradient(W*0.8,H*0.86,0,W*0.8,H*0.86,860);
+  g.addColorStop(0,'rgba(184,146,42,0.14)'); g.addColorStop(1,'rgba(184,146,42,0)'); ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
 
-  ctx.strokeStyle=TEAL; ctx.lineWidth=5; ctx.strokeRect(42,42,W-84,H-84);
-  ctx.strokeStyle=GOLD; ctx.lineWidth=2; ctx.strokeRect(60,60,W-120,H-120);
-  certCorner(ctx,60,60,GOLD); certCorner(ctx,W-60,60,GOLD); certCorner(ctx,60,H-60,GOLD); certCorner(ctx,W-60,H-60,GOLD);
+  // ── faint light-lines + colored dots (corner zones only) ──
+  certBgDecor(ctx, W, H);
 
+  // ── double border + corner ornaments ──
+  ctx.strokeStyle='rgba(40,192,198,0.85)'; ctx.lineWidth=5; ctx.strokeRect(42,42,W-84,H-84);
+  ctx.strokeStyle='rgba(218,180,85,0.9)';  ctx.lineWidth=1.5; ctx.strokeRect(60,60,W-120,H-120);
+  certCorner(ctx,60,60,GOLDL); certCorner(ctx,W-60,60,GOLDL); certCorner(ctx,60,H-60,GOLDL); certCorner(ctx,W-60,H-60,GOLDL);
+
+  // ── content ──
   ctx.textAlign='center'; ctx.textBaseline='top';
-  let y=118;
+  let y = hasPhoto ? 104 : 118;
+
   const logo = await certLoadImg(document.querySelector('.lb-logos img')?.src || '');
-  if(logo && logo.width){ const lh=132, lw=logo.width*(lh/logo.height); ctx.drawImage(logo, cx-lw/2, y, lw, lh); y+=lh+14; }
+  const lh = hasPhoto ? 92 : 108;
+  if(logo && logo.width){ const lw=logo.width*(lh/logo.height); ctx.drawImage(logo, cx-lw/2, y, lw, lh); y+=lh+(hasPhoto?12:16); }
   else { y+=70; }
 
-  ctx.fillStyle=TEAL; ctx.font="600 30px 'Playfair Display', serif";
-  ctx.fillText(CERT_CONFIG.forumName, cx, y); y+=38;
-  certDivider(ctx, cx, y+4, 90, GOLD); y+=26;
+  ctx.fillStyle=TEALB; ctx.font="600 28px 'Playfair Display', serif";
+  ctx.fillText(CERT_CONFIG.forumName, cx, y); y += hasPhoto?32:36;
+  certDivider(ctx, cx, y+4, 86, GOLDL); y += hasPhoto?20:26;
 
-  ctx.fillStyle=GOLD; ctx.font="600 22px 'DM Sans', sans-serif"; ctx.letterSpacing='7px';
-  ctx.fillText('CERTIFICATE OF', cx, y); ctx.letterSpacing='0px'; y+=34;
+  ctx.fillStyle=GOLDL; ctx.font="600 21px 'DM Sans', sans-serif"; ctx.letterSpacing='7px';
+  ctx.fillText('CERTIFICATE OF', cx, y); ctx.letterSpacing='0px'; y+=30;
 
   const titleWord = person.category==='Committee' ? 'Appreciation'
                   : person.category==='Attendee'  ? 'Attendance'
                   : 'Participation';
-  ctx.fillStyle=TEAL; ctx.font="700 84px 'Playfair Display', serif";
-  ctx.fillText(titleWord, cx, y); y+=92;
+  let tg=ctx.createLinearGradient(0,y,0,y+78); tg.addColorStop(0,GOLDX); tg.addColorStop(1,GOLD);
+  ctx.fillStyle=tg; ctx.font="700 78px 'Playfair Display', serif";
+  ctx.fillText(titleWord, cx, y); y+=82;
 
   const subtitle = person.category==='Keynote' ? 'Keynote Speaker'
                  : person.category==='Speaker' ? 'Distinguished Speaker'
                  : person.category==='Attendee' ? 'Forum Participant'
                  : (person.committee || 'Organizing Committee');
-  ctx.fillStyle=TEALL; ctx.font="italic 500 26px 'EB Garamond', serif";
-  ctx.fillText(subtitle, cx, y); y+=52;
+  ctx.fillStyle=TEALB; ctx.font="italic 500 25px 'EB Garamond', serif";
+  ctx.fillText(subtitle, cx, y); y += hasPhoto?40:48;
 
-  ctx.fillStyle=SUB; ctx.font="italic 400 28px 'EB Garamond', serif";
-  ctx.fillText('This certificate is proudly presented to', cx, y); y+=48;
+  // ── optional circular photo ──
+  if(hasPhoto){
+    const d=156;
+    certDrawPhoto(ctx, photoImg, cx, y+d/2, d, TEAL, GOLD, GOLDL);
+    y += d + 22;
+  }
 
-  ctx.fillStyle=TEAL; ctx.font="700 86px 'Playfair Display', serif";
-  ctx.fillText(person.name, cx, y);
-  const nameW=Math.min(ctx.measureText(person.name).width/2 + 70, 600);
-  y+=98; certDivider(ctx, cx, y, nameW, GOLD); y+=30;
+  ctx.fillStyle=SUB; ctx.font="italic 400 26px 'EB Garamond', serif";
+  ctx.fillText('This certificate is proudly presented to', cx, y); y += 46;
+
+  // name (warm cream → gold gradient)
+  ctx.font="700 78px 'Playfair Display', serif";
+  let ng=ctx.createLinearGradient(0,y,0,y+78); ng.addColorStop(0,'#fbf4e3'); ng.addColorStop(1,GOLDL);
+  ctx.fillStyle=ng; ctx.fillText(person.name, cx, y);
+  const nameW=Math.min(ctx.measureText(person.name).width/2 + 70, 620);
+  y+=88; certDivider(ctx, cx, y, nameW, GOLDL); y+=26;
 
   const F = CERT_CONFIG.forumName+' ('+CERT_CONFIG.forumShort+')';
   let body;
@@ -2328,28 +2499,28 @@ async function drawCertificate(person, certId){
   else if(person.category==='Speaker')
     body='in sincere appreciation of their distinguished participation as a Speaker at the '+F+', and for their valued contribution to advancing nursing research, innovation, and clinical excellence.';
   else if(person.category==='Attendee')
-    body='in appreciation of their valued attendance and active participation in the '+F+', and for their engagement throughout the forum’s sessions and activities.';
+    body='in appreciation of their valued attendance and active participation in the '+F+', and for their engagement throughout the forum\u2019s sessions and activities.';
   else
     body='in sincere appreciation of their dedicated efforts and outstanding contribution as a valued member of the '+(person.committee||'organizing team')+', which greatly supported the success of the '+F+'.';
 
-  ctx.fillStyle=INK; ctx.font="400 29px 'EB Garamond', serif";
-  certWrap(ctx, body, 1280).forEach(ln=>{ ctx.fillText(ln, cx, y); y+=43; });
-  y+=14;
+  ctx.fillStyle=BODY; ctx.font="400 26px 'EB Garamond', serif";
+  certWrap(ctx, body, 1340).forEach(ln=>{ ctx.fillText(ln, cx, y); y+=38; });
+  y+=12;
 
-  ctx.fillStyle=TEAL; ctx.font="600 22px 'DM Sans', sans-serif"; ctx.letterSpacing='1px';
-  ctx.fillText(CERT_CONFIG.forumDate, cx, y); ctx.letterSpacing='0px'; y+=30;
-  ctx.fillStyle=SUB; ctx.font="400 18px 'DM Sans', sans-serif";
+  ctx.fillStyle=GOLDL; ctx.font="600 20px 'DM Sans', sans-serif"; ctx.letterSpacing='1px';
+  ctx.fillText(CERT_CONFIG.forumDate, cx, y); ctx.letterSpacing='0px'; y+=28;
+  ctx.fillStyle=SUB; ctx.font="400 16px 'DM Sans', sans-serif";
   ctx.fillText(CERT_CONFIG.location, cx, y);
 
   // ── bottom band: signature(s) + seal ──
   const sigs = CERT_CONFIG.signatories.slice(0,2);
   const sigHalf=158;
-  const drawSig=(s,sx,ly)=>{
-    ctx.strokeStyle=TEAL; ctx.lineWidth=1.5;
+  const drawSig=(sg,sx,ly)=>{
+    ctx.strokeStyle='rgba(218,180,85,0.85)'; ctx.lineWidth=1.5;
     ctx.beginPath(); ctx.moveTo(sx-sigHalf,ly); ctx.lineTo(sx+sigHalf,ly); ctx.stroke();
     ctx.textAlign='center'; ctx.textBaseline='alphabetic';
-    ctx.fillStyle=TEAL; ctx.font="600 25px 'Playfair Display', serif"; ctx.fillText(s.name, sx, ly-14);
-    ctx.fillStyle=SUB;  ctx.font="500 17px 'DM Sans', sans-serif"; ctx.fillText(s.title, sx, ly+30);
+    ctx.fillStyle=CREAM; ctx.font="600 24px 'Playfair Display', serif"; ctx.fillText(sg.name, sx, ly-13);
+    ctx.fillStyle=SUB;   ctx.font="500 16px 'DM Sans', sans-serif";   ctx.fillText(sg.title, sx, ly+28);
   };
   if(sigs.length>=2){
     drawSig(sigs[0], 565, H-156);
@@ -2363,8 +2534,8 @@ async function drawCertificate(person, certId){
   }
 
   ctx.textAlign='center'; ctx.textBaseline='alphabetic';
-  ctx.fillStyle=SUB; ctx.font="500 17px 'DM Sans', sans-serif"; ctx.letterSpacing='1px';
-  ctx.fillText('Certificate ID: '+certId, cx, H-66); ctx.letterSpacing='0px';
+  ctx.fillStyle=SUB; ctx.font="500 16px 'DM Sans', sans-serif"; ctx.letterSpacing='1px';
+  ctx.fillText('Certificate ID: '+certId, cx, H-62); ctx.letterSpacing='0px';
 }
 
 // ── Downloads ───────────────────────────────────────────────
